@@ -1,34 +1,30 @@
 import Checklist from '../models/Checklist.js';
-import crypto from 'crypto';
 
 export const createChecklist = async (req, res) => {
-  const { vehicle, items } = req.body;
-  const images = (req.files.images || []).map(f => f.path);
-  const videos = (req.files.videos || []).map(f => f.path);
-  const signature = req.files.signature?.[0]?.path || '';
+  try {
+    const { vehicle, items } = req.body;
+    const userId = req.user._id;
 
-  const sharedToken = crypto.randomBytes(16).toString('hex');
+    const parsedItems = JSON.parse(items);
 
-  const checklist = await Checklist.create({
-    userId: req.user.id,
-    vehicle,
-    items: JSON.parse(items),
-    images,
-    videos,
-    signature,
-    sharedToken,
-  });
+    const images = req.files.images ? req.files.images.map(file => `/uploads/${file.filename}`) : [];
+    const videos = req.files.videos ? req.files.videos.map(file => `/uploads/${file.filename}`) : [];
+    const signature = req.files.signature ? `/uploads/${req.files.signature[0].filename}` : null;
 
-  res.status(201).json(checklist);
-};
+    const checklist = new Checklist({
+      vehicle,
+      items: parsedItems,
+      images,
+      videos,
+      signature,
+      userId,
+    });
 
-export const getChecklists = async (req, res) => {
-  const checklists = await Checklist.find({ userId: req.user.id });
-  res.json(checklists);
-};
+    await checklist.save();
 
-export const getChecklistByToken = async (req, res) => {
-  const checklist = await Checklist.findOne({ sharedToken: req.params.token });
-  if (!checklist) return res.status(404).json({ error: 'Não encontrado' });
-  res.json(checklist);
+    res.status(201).json({ message: 'Checklist salvo com sucesso', checklist });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erro ao salvar checklist' });
+  }
 };
